@@ -1,0 +1,12 @@
+[Event ""]
+[Site ""]
+[Date "2022.08.28"]
+[Round ""]
+[White "root"]
+[Black "GNU Chess 6.2.9"]
+[WhiteELO "0"]
+[BlackELO "0"]
+[Result "*"]
+
+1. e4 e5 2. a3 Nf6 * {xboard exit}
+

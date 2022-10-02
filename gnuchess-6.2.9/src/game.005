@@ -1,0 +1,14 @@
+[Event ""]
+[Site ""]
+[Date "2022.08.20"]
+[Round ""]
+[White "talegria"]
+[Black "GNU Chess 6.2.9"]
+[WhiteELO "0"]
+[BlackELO "0"]
+[Result "0-1"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 Bc5 4. O-O Nf6 5. Bxc6 dxc6 6. c3 Bg4 7. h3 Bxf3 8.
+Qxf3 Qd6 9. Rd1 O-O-O 10. b4 Bb6 11. a4 a5 12. d4 axb4 13. dxe5 Qxd1+ 14. Qxd1
+Rxd1+ 0-1 {White resigns}
+

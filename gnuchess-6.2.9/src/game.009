@@ -1,0 +1,12 @@
+[Event ""]
+[Site ""]
+[Date "2022.08.28"]
+[Round ""]
+[White "talegria"]
+[Black "GNU Chess 6.2.9"]
+[WhiteELO "0"]
+[BlackELO "0"]
+[Result "*"]
+
+1. a4 Nc6 2. b4 * {xboard exit}
+
