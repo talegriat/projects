@@ -6,113 +6,35 @@ using namespace std;
 #define BLACK true
 #define WHITE false
 
-//insert cell at the front of the column
-void insert_f(struct Cell** current){
-    struct Cell* newCell = new Cell;
-    newCell->row=(*current)->row+1;
-    newCell->black=!(*current)->black;
-    newCell->column=(*current)->column;
-    newCell->b=(*current);
-    newCell->f=NULL;
-
-    (*current)->f=newCell;
-    
-    
-}
-
-
-struct Cell* getCell(char col, int i, bool bl){
-    struct Cell* a1=new Cell;
-    (a1)->black=bl;
-    (a1)->row=i;
-    (a1)->column=col;
-    return (a1);
-}
-
-void buildColumn(struct Cell* c){
-    while ((c)->row <8 ){
-        struct Cell* n=new Cell;
-        (n)->column=(c)->column;
-        (n)->row=(c)->row+1;
-        (n)->black=!(c)->black;
-        (n)->b=c;
-        (c)->f=n;
-        c=n;
-    }
-
-}   
-
-void linkColumns(Cell* prev, Cell*c){
-    struct Cell* current=NULL;
-    struct Cell*  previous=NULL;
-    struct Cell*  cf=NULL;
-    struct Cell*  pf=NULL;
-    struct Cell*  cb=NULL;
-    struct Cell*  pb=NULL;
-    
-    current=c;
-    previous=prev;
-    int i=(current)->row; 
-    while (i <9 ){
-        (current)->l=previous;
-        (previous)->r=current;
-        
-        //
-        cf=(current)->f;
-        cb=(current)->b;
-        pf=(previous)->f;
-        pb=(previous)->b;
-        if (cf!=NULL  ){
-            (current)->lf=pf;
-            (current)->lb=pb;
-            (previous)->rf=cf;
-            (previous)->rb=cb;
-
-            (cf)->lb=prev;
-            (pf)->rb=current;
-        } else {
-            (current)->lf=pf;
-            (current)->lb=pb;
-            (previous)->rf=cf;
-            (previous)->rb=cb;
-        }
-        //
-
-        current=(current)->f;
-        previous=(previous)->f;
-        i++;
-    }
-}
-
-struct Cell* buildRows(){
-    struct Cell* a1=NULL;
-
-    bool cl=BLACK;
-    char col='A';
-    struct Cell* prev=NULL;
-    while (col <='H'){
-        struct Cell* c = getCell(col,1, cl);
-        buildColumn(c);
-        col=(char)col+1;
-        cl=!cl;
-        if (prev){
-            linkColumns(prev,c);
-        }else{
-            a1=c;
-        }
-        prev=c;
-    }
-    return a1;
-}   
-
-
 
 int main(){
     Board b;
-    cout<<b;
+    //lower -- black
+    //upper White
+    //<FEN> ::=  <Piece Placement>
+    //   ' ' <Side to move>
+    //   ' ' <Castling ability>
+    //   ' ' <En passant target square>
+    //   ' ' <Halfmove clock>
+    //   ' ' <Fullmove counter>
+/****
+**  1 -- read Moves for both black and white
+**  2 -- Validate  moves and affect  Fen castling and passant status
+**  3 -- Genearate position evaluation --- number from 1 to 10
+**  
+****/
+
+    cout<<b<<endl;
+    cout<<b.getFENString();
+    cout<<endl;
+
 }
 
-int test(){/*
+
+int test(){
+    
+    
+    /*
     struct Cell* n=buildRows();
     struct Cell* a1=n;
     struct Cell* m=NULL;
@@ -146,7 +68,24 @@ int test(){/*
 
 
 
-    }*/
+    }
+    
+    int x=b.initBoard("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 39 201 ");
+    cout<<b;
+    x=b.initBoard("8/8/8/8/8/8/8/8 b KQkq - 1 2 ");
+    cout<<b;
+    x=b.initBoard("rnbqkbnrr/ppppppppp/88/8p6/4P3/5N2/PPPP2PPP/RNBQKB2R b KQkq e3 49 105 ");
+    cout<<b;
+    x=b.initBoard("xxxxxxrnbqkbnxrr/ppppppppp/88/2p6/4P3/5N2/PPPP2PPP/RNBQKB2R b - - 1 2 ");
+    cout<<b;
+    x=b.initBoard("rnbqkbnr/ppppppppp/8/8/8/8/ppppppppp/RNBQKBNR w KQkq - 0 1 ");
+    cout<<b<<endl;
+    cout<<b.getFENString();
+    cout<<endl;
+
+    x=b.initBoard("rnbqkbn1/2ppppppp/8/8/8/pppp4/ppppppppp/RNBQKB2 w KQkq - 0 1 ");
+    
+    */
 // _setmode(_fileno(stdout), _O_U16TEXT);
 //int WK = '♛';
 //char *s  = u8"\u2654";

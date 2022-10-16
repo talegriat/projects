@@ -127,7 +127,7 @@ void ShowMvboard (void)
 
   int main()
 {
-    InitBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR")
+    InitBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
     showInitialBoard();
     for (;;){
  

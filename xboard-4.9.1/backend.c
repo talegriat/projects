@@ -16922,41 +16922,41 @@ ReceiveFromProgram (InputSourceRef isr, VOIDSTAR closure, char *message, int cou
     ChessProgramState *cps = (ChessProgramState *)closure;
 
     if (isr != cps->isr) return; /* Killed intentionally */
-		if (count <= 0) {
-			if (count == 0) {
-				RemoveInputSource(cps->isr);
-				snprintf(buf, MSG_SIZ, _("Error: %s chess program (%s) exited unexpectedly"),
-					_(cps->which), cps->program);
-				if(LoadError(cps->userError ? NULL : buf, cps)) return; // [HGM] should not generate fatal error during engine load
-				if(gameInfo.resultDetails==NULL) { /* [HGM] crash: if game in progress, give reason for abort */
-						if((signed char)boards[forwardMostMove][EP_STATUS] <= EP_DRAWS) {
-							snprintf(buf, MSG_SIZ, _("%s program exits in draw position (%s)"), _(cps->which), cps->program);
-					if(matchMode && appData.tourneyFile[0]) { cps->pr = NoProc; GameEnds(GameIsDrawn, buf, GE_XBOARD); return; }
-							gameInfo.result = GameIsDrawn; /* [HGM] accept exit as draw claim */
-						} else {
-							ChessMove res = cps->twoMachinesColor[0]=='w' ? BlackWins : WhiteWins;
-					if(matchMode && appData.tourneyFile[0]) { cps->pr = NoProc; GameEnds(res, buf, GE_XBOARD); return; }
-							gameInfo.result = res;
-						}
-						gameInfo.resultDetails = StrSave(buf);
+	if (count <= 0) {
+		if (count == 0) {
+			RemoveInputSource(cps->isr);
+			snprintf(buf, MSG_SIZ, _("Error: %s chess program (%s) exited unexpectedly"),
+				_(cps->which), cps->program);
+			if(LoadError(cps->userError ? NULL : buf, cps)) return; // [HGM] should not generate fatal error during engine load
+			if(gameInfo.resultDetails==NULL) { /* [HGM] crash: if game in progress, give reason for abort */
+					if((signed char)boards[forwardMostMove][EP_STATUS] <= EP_DRAWS) {
+						snprintf(buf, MSG_SIZ, _("%s program exits in draw position (%s)"), _(cps->which), cps->program);
+				if(matchMode && appData.tourneyFile[0]) { cps->pr = NoProc; GameEnds(GameIsDrawn, buf, GE_XBOARD); return; }
+						gameInfo.result = GameIsDrawn; /* [HGM] accept exit as draw claim */
+					} else {
+						ChessMove res = cps->twoMachinesColor[0]=='w' ? BlackWins : WhiteWins;
+				if(matchMode && appData.tourneyFile[0]) { cps->pr = NoProc; GameEnds(res, buf, GE_XBOARD); return; }
+						gameInfo.result = res;
 					}
-				if(matchMode && appData.tourneyFile[0]) { cps->pr = NoProc; return; }
-				if(!cps->userError || !appData.popupExitMessage) DisplayFatalError(buf, 0, 1); else errorExitStatus = 1;
-			} else {
-				snprintf(buf, MSG_SIZ, _("Error reading from %s chess program (%s)"),
-					_(cps->which), cps->program);
-				RemoveInputSource(cps->isr);
+					gameInfo.resultDetails = StrSave(buf);
+				}
+			if(matchMode && appData.tourneyFile[0]) { cps->pr = NoProc; return; }
+			if(!cps->userError || !appData.popupExitMessage) DisplayFatalError(buf, 0, 1); else errorExitStatus = 1;
+		} else {
+			snprintf(buf, MSG_SIZ, _("Error reading from %s chess program (%s)"),
+				_(cps->which), cps->program);
+			RemoveInputSource(cps->isr);
 
-					/* [AS] Program is misbehaving badly... kill it */
-					if( count == -2 ) {
-						DestroyChildProcess( cps->pr, 9 );
-						cps->pr = NoProc;
-					}
+				/* [AS] Program is misbehaving badly... kill it */
+				if( count == -2 ) {
+					DestroyChildProcess( cps->pr, 9 );
+					cps->pr = NoProc;
+				}
 
-					if(!cps->userError || !appData.popupExitMessage) DisplayFatalError(buf, error, 1); else errorExitStatus = 1;
-			}
-			return;
+				if(!cps->userError || !appData.popupExitMessage) DisplayFatalError(buf, error, 1); else errorExitStatus = 1;
 		}
+		return;
+	}
 
     if ((end_str = strchr(message, '\r')) != NULL)
       *end_str = NULLCHAR;
