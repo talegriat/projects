@@ -9,12 +9,54 @@ using namespace std;
 #define BLACK true
 #define WHITE false
 
-
-int main(){
+void processGame(list<GameMove> l){
     Board b;
-    GameFile g;
+    list<GameMove>::iterator i=l.begin();
     string wMove;
     string bMove;
+    GameMove m;
+    while (i != l.end()){
+        //b.moveWhite((*i)->whiteMove()); 
+        //cout<<b<<endl;
+        //
+        if ((i)->getMoveNumber()>0){
+            cout<<(i)->getMoveNumber()<<". "<<(i)->getWhiteMove()<<endl;  
+            GameMove gm=*i;          
+            b.processWhiteMove(&gm);
+            if (b.getEnPassantSide()=='B'){
+                b.setEnPassantSide(' ');
+                b.passant[0]='-';
+                b.passant[1]='-';
+            }
+            cout<<b<<endl;
+            b.whiteToMove=false;
+            cout<<(i)->getMoveNumber()<<". "<<(i)->getWhiteMove()<<" - "<<(i)->getBlackMove()<<endl;  
+            b.processBlackMove(&gm);
+            if (b.getEnPassantSide()=='W'){
+                b.setEnPassantSide(' ');
+                b.passant[0]='-';
+                b.passant[1]='-';
+            }
+            cout<<b<<endl;
+            b.whiteToMove=true;
+            //cout<<"press enter key to continue...";
+            //cin >> wMove;
+        } else {
+            cout<<(i)->getFullResult()<<endl;  
+        }
+     
+
+
+        ++i;
+    }
+}
+
+
+
+int main(){
+
+    GameFile g;
+
     //lower -- black
     //upper White
     //<FEN> ::=  <Piece Placement>
@@ -25,17 +67,8 @@ int main(){
     //   ' ' <Fullmove counter>
 /****
 **  1 -- Validate  moves and affect  Fen castling and passant status
-**      1.1 solve d4 kind of moves...... processWhiteMove
-            1.1.1   create an array with the pawns and other with pieces
-            1.1.2   ask each pawn if they can reach the target cell
-        1.2 solve Nc3
-            1.2.1   ask each pawn or iece if they can reach the target cell
-            1.2.2   check if more than one pawn/piece can reach the same spot
-        1.3 solve d3xe3, Nxc3
-            1.3.1 validarte target cell is not empty and ocupied by an opposite clolor piece
-            1.3.2 mark captured piece as out of the board
-        1.4 affect castling when moving King or rook
-        1.5 K castle (validate and affect FEN)
+        1.5 add move counter
+        1.5.1 add half move counter since last capture
         1.6 validate for discovery checks before moving
         1.7 validate for check before moving
         1.8 evaluate opposite king check after moving
@@ -47,62 +80,18 @@ int main(){
 **  
 ****/
 
-    cout<<b<<endl;
-    /*
-    cout<<"White to Move: ";
-    cin >> wMove;
-    b.moveWhite(wMove);
-    cout<<endl;
-    cout<<b<<endl;
-    cout<<"Black to Move: ";h
-    h
-
-    cin >> bMove;
-    b.moveBlack(bMove);
-    cout<<endl;
-    cout<<b<<endl;
-    cout<<b.getFENString();
-    cout<<endl;
-    */
     g.processFile("./game.pgn");
-    cout<<g.moveList()<<endl;
+    //cout<<g.moveList()<<endl;
     
-    g.parseMoves();
-    list<GameMove> l=g.getGameMoves();
-    list<GameMove>::iterator i=l.begin();
-    //b.initBoard(); // ----IMPORTANT - 20221231 --- Calling it twice cleans the board, but duplicates the number of pieces!!!!
+    while (g.hasMoreGames()){
+        cout<<g.currentGame()<<endl;
+        list<GameMove> l=g.getNextGameMoves();
+        processGame(l);
 
-    cout<<b<<endl;
-    //cout<<"press enter key to continue...";
-    //cin >> wMove;
-    GameMove m;
-    while (i != l.end()){
-        //b.moveWhite((*i)->whiteMove()); 
-        //cout<<b<<endl;
-        //
-        if ((i)->getMoveNumber()>0){
-            cout<<(i)->getMoveNumber()<<". "<<(i)->getWhiteMove()<<" - "<<(i)->getBlackMove()<<endl;  
-            GameMove gm=*i;          
-            b.processWhiteMove(&gm);
-            if (b.getEnPassantSide()=='B'){
-                b.setEnPassantSide(' ');
-            }
-            cout<<b<<endl;
-            b.processBlackMove(&gm);
-            if (b.getEnPassantSide()=='W'){
-                b.setEnPassantSide(' ');
-            }
-            cout<<b<<endl;
-            //cout<<"press enter key to continue...";
-            //cin >> wMove;
-        } else {
-            cout<<(i)->getFullResult()<<endl;  
-        }
-     
-
-
-        ++i;
     }
+    
+
+
 }
 
 

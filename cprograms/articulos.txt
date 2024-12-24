@@ -1,0 +1,6 @@
+156 Bocinas 6120 15
+653 Escritorio 5230 20
+569 Silla 3250 10
+369 Ipad 5200 16
+762 Tablet 11000 5
+623 Pcerda 20000 1

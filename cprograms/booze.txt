@@ -1,0 +1,5 @@
+3 30.00 brandy
+5 18.50 Gin
+5 17.00 Rum
+10 15.50 Vodka
+8 25.00 Whiskey

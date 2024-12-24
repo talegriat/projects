@@ -114,13 +114,21 @@ public:
     bool getbCapture();
     bool getbKCastling();
     bool getbQCastling();
+    char getwPromoteTo();
+    char getbPromoteTo();
     GameMove();
 };
 
 GameMove::GameMove(){
 
 }
+char GameMove::getwPromoteTo(){
+    return wPromoteTo;
+}
 
+char GameMove::getbPromoteTo(){
+    return bPromoteTo;
+}
 
 char GameMove::getwPieceMoved(){
     return wPieceMoved;
@@ -610,46 +618,85 @@ class GameFile {
 public:
     char movesString[2000];
     int movesStringSize=0;
+    int current=0;
+    int totalGames=0;
     list<GameMove> gameMoves;
+    char * gamesList[2000];
     //GameFile();
     void processFile(string);
     char *moveList();
-    void parseMoves();
+    void parseMoves(char *);
     list<GameMove> getGameMoves();
+    bool hasMoreGames();
+    list<GameMove> getNextGameMoves();
+    string currentGame();
+
 };
 
-list<GameMove> GameFile::getGameMoves(){
-    return gameMoves;
+string GameFile::currentGame(){
+    string s="Current Game -- ";
+    string z;
+    stringstream x;
+    x<<current;
+    x>>z;
+    s=s+z+" -- ";
+    s+=gamesList[current];
+    
+    return s;
+}
+
+list<GameMove> GameFile::getNextGameMoves(){
+    list<GameMove> gM;
+    if (current<totalGames){
+        parseMoves(gamesList[current++]);
+        return gameMoves;
+    } else
+    return gM;
+}
+
+bool GameFile::hasMoreGames(){
+    if (current<totalGames)
+        return true;
+    return false;
 }
 
 void GameFile::processFile(string fileName){
     fstream inFile;
+    int i=0;
     std::string strx;
+    char * stry;
     inFile.open(fileName);
     if (!inFile.is_open()) {
         cout << "Unable to open file";
         exit(1); // terminate with error
     }
     
-    while (getline(inFile, strx) ) {
-        if(strx.find('[')== string::npos ){
+    while (getline(inFile, strx) && i<2000) {
+        if((strx.find('[')== string::npos) &&(strx.find("     ")== string::npos ) &&(strx.length()>0) ){
+            stry=(char *) malloc (2000 * sizeof *stry);
             strx.copy(movesString,strx.length(),0);
             movesString[strx.length()]='\0';
             movesStringSize=strx.length();
+            strx.copy(stry,strx.length(),0);
+            stry[strx.length()]='\0';
+            gamesList[i++]=stry;
+            totalGames=i;
         }
         
     }    
 }
 
-char *GameFile::moveList(){
-    return movesString;
-}
+//char *GameFile::moveList(){
+//    return movesString;
+//}
 
-void GameFile::parseMoves(){
-    regex str_pgnExpr ("(((\\d+)(\\.)) ((([PNBRQK]?)(([a-h]?)([1-8]?)?)([x]?)(([a-h])([1-8]))(=[NBRQ]+)?|(O\\-O\\-O|O\\-O))(\\+|\\#)?)  ((([PNBRQK]?)(([a-h]?)([1-8]?)?)([x]?)(([a-h])([1-8]))(=[NBRQ]+)?|(O\\-O\\-O|O\\-O))(\\+|\\#)?)) |(([10][\\-][10])|(1\\/2[\\-]1\\/2))*"); 
+void GameFile::parseMoves(char * movesStr){
+    string moves=movesStr;
+    gameMoves.clear();
+    regex str_pgnExpr ("(((\\d+)(\\.)) ((([PNBRQK]?)(([a-h]?)([1-8]?)?)([x]?)(([a-h])([1-8]))(=[NBRQ]+)?|(O\\-O\\-O|O\\-O))(\\+|\\#)?)(  )?((([PNBRQK]?)(([a-h]?)([1-8]?)?)([x]?)(([a-h])([1-8]))(=[NBRQ]+)?|(O\\-O\\-O|O\\-O))?(\\+|\\#)?))( )?|(([10][\\-][10])|(1\\/2[\\-]1\\/2))*"); 
     smatch m;
     int i=0;
-    string moves=movesString;
+
 
     while (moves.length()!=0 ) {
         regex_search (moves,m,str_pgnExpr);
@@ -657,9 +704,9 @@ void GameFile::parseMoves(){
         string match=m[0];
         int lengthMatch=match.length();
         gm->setMatch(m[0]);                  //Match   						0
-        gm->setFullResult(m[31]);                  //Full result					31
-        gm->setWinResult(m[32]);                   //White/black win 1-0 or 0-1	32
-        gm->setDraw(m[33]);                        //Draw 1/2-1/2                  33   
+        gm->setFullResult(m[33]);                  //Full result					31
+        gm->setWinResult(m[34]);                   //White/black win 1-0 or 0-1	32
+        gm->setDraw(m[35]);                        //Draw 1/2-1/2                  33   
         //string fullMove;                  //Full Move						1
         //string fullMoveNumber;            //Full Move number				2
 
@@ -681,19 +728,19 @@ void GameFile::parseMoves(){
 
 
 
-        gm->setbPromoteTo(m[28]);            //CoronarPor  "=Q|R|N|B"    	28
-        gm->setbCastling(m[29]);             //enroque  O-O-O or O-O 		29
-        gm->setbCheck(m[30]);                //Check or mate	+ or #			30
-        gm->setbCapture(m[24]);              //Capture?						24
-        gm->setbPieceMoved(m[20]);           //Piece Moved					20
-        gm->setbOriginColumn(m[22]);         //origin Column					22
-        gm->setbOriginRank(m[23]);           //Origin rank					23
-        gm->setbOriginCell(m[21]);          //origin Cell					21
-        gm->setbTargetColumn(m[26]);         //Target Column					26
-        gm->setbTargetRank(m[27]);           //target rank					27
-        gm->setbTargetCell(m[25]);           //Target Cell					25
-        gm->setbMove(m[19]);                 //Black move					19
-        gm->setFullbMove(m[18]);             //Full black move				18
+        gm->setbPromoteTo(m[29]);            //CoronarPor  "=Q|R|N|B"    	28
+        gm->setbCastling(m[30]);             //enroque  O-O-O or O-O 		29
+        gm->setbCheck(m[31]);                //Check or mate	+ or #			30
+        gm->setbCapture(m[25]);              //Capture?						24
+        gm->setbPieceMoved(m[21]);           //Piece Moved					20
+        gm->setbOriginColumn(m[23]);         //origin Column					22
+        gm->setbOriginRank(m[24]);           //Origin rank					23
+        gm->setbOriginCell(m[22]);          //origin Cell					21
+        gm->setbTargetColumn(m[27]);         //Target Column					26
+        gm->setbTargetRank(m[28]);           //target rank					27
+        gm->setbTargetCell(m[26]);           //Target Cell					25
+        gm->setbMove(m[20]);                 //Black move					20
+        gm->setFullbMove(m[19]);             //Full black move				19
         
         gameMoves.push_back((GameMove)*gm);
         moves=moves.substr(lengthMatch);

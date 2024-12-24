@@ -54,6 +54,11 @@
         "chrono": "cpp",
         "bitset": "cpp",
         "ratio": "cpp",
-        "shared_mutex": "cpp"
-    }
+        "shared_mutex": "cpp",
+        "condition_variable": "cpp",
+        "map": "cpp",
+        "iomanip": "cpp"
+    },
+    "cmake.options.statusBarVisibility": "visible",
+    "cmake.useCMakePresets": "always"
 }

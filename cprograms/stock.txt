@@ -1,0 +1,7 @@
+Quantity   Price   Value   Description
+3     30           90        brandy
+5     18.5           92.5        Gin
+5     17           85        Rum
+10     15.5           155        Vodka
+8     25           200        Whiskey
+Total:      $622.5

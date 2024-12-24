@@ -3,6 +3,7 @@
 #include <string>       // std::string
 #include <sstream>      // std::stringbuf
 #include "GameFile.h"
+#include <cstdlib>
 using namespace std;
 #define BLACK true
 #define WHITE false
@@ -34,14 +35,13 @@ struct Cell{
 
 
 class Piece {
-
+    bool onBoard=true;
 
 public:
     struct Cell *initialCell;
     struct Cell *currentCell;
     struct Cell *previousCell;
     bool isBlackPiece=false;
-    bool onBoard=true;
     bool onOpenColumn=false;
     bool onHalfOpenColumn=false;
     bool withOpenRank=false;
@@ -84,6 +84,8 @@ public:
     bool moveTo(char , int);
     struct Cell *getCell(char ,int );
     bool captureOn(char , int );
+    void setOnBoard(bool );
+    bool getOnBoard();
 };
 
 Piece::Piece(){
@@ -94,12 +96,21 @@ void Piece::init(struct Cell *initial){
     currentCell=initial;
     previousCell=initial;
     initialCell=initial;
-    onBoard=true;
+    onBoard=false;
+    setOnBoard(true);
     rank=initial->row;
     col=initial->column;
     type=initial->pieceType;
     //assess();
 }
+void Piece::setOnBoard(bool ob){
+    onBoard=ob;
+}
+
+bool Piece::getOnBoard(){
+    return onBoard;
+}
+
 void Piece::assess(){
     /*
     onOpenColumn=hasOpenColumn();
@@ -122,7 +133,7 @@ bool Piece::isNextTo(char tCol, int tRank){
     char oCol=currentCell->column;
     int oRank=currentCell->row;
     int x = abs(oRank-tRank);
-    int y=  abs((int)oRank-(int)tRank); //
+    int y=  abs((int)oCol-(int)tCol); //
 
     if (x==1 & y==1){
         return true;
@@ -214,7 +225,7 @@ bool Piece::moveTo(char tCol,int tRank){
     previousCell=currentCell;
     currentCell=target;
     
-    onBoard=true;
+    setOnBoard(true);
     
     alreadyMoved=true;
     if (tRank>5){
@@ -240,7 +251,7 @@ bool Piece::captureOn(char tCol, int tRank){
     }
     
     if (empty){
-        return false; ----Check pasant
+        return false; //----Check pasant
     } else {
         currentCell->empty=true;
         target->empty=false;
@@ -255,20 +266,24 @@ bool Piece::captureOn(char tCol, int tRank){
     currentCell->blackPiece=false;
 
     //---
-    (target->piece)->onBoard=false;
+    Piece * t=target->piece;
+    Piece * c=currentCell->piece;
+    (target->piece)->setOnBoard(false);
     (target->piece)->rank=0;
     (target->piece)->col=' ';
-    (target->piece)->previousCell=currentCell;
+    (target->piece)->previousCell=(target->piece)->currentCell;
     (target->piece)->currentCell=NULL;
     //---
     
-    target->piece= this;  //currentCell->piece;
+    target->piece= c;  //currentCell->piece;
+    bool onb=t->getOnBoard();
+
     currentCell->piece=NULL;
 
     previousCell=currentCell;
     currentCell=target;
     
-    onBoard=true;
+    setOnBoard(true);
     
     alreadyMoved=true;
     
@@ -389,12 +404,14 @@ class WPawn:public Pawn {
 
 public:
     WPawn(struct Cell *);
-    bool canReach(char , int);
-    bool moveTo(char , int, bool);
+    bool canReach(char , int , bool , char , char *);
+    bool moveTo(char , int, bool, char , char  *);
     bool moveTo(char , int );
     bool enPassant=false;
     bool getEnPassant();
     void setEnPassant(bool);
+    bool captureOn(char , int, char, char *);
+    bool captureOnPassant(char , int , char , char * );
 };
 
 WPawn::WPawn(struct Cell *c){
@@ -403,7 +420,7 @@ WPawn::WPawn(struct Cell *c){
 }
 
 
-bool WPawn::canReach(char tCol, int tRank){
+bool WPawn::canReach(char tCol, int tRank, bool capture, char enPassantSide, char  * passant){
     bool valid=false;
     if (currentCell==NULL){
         return valid;
@@ -417,6 +434,7 @@ bool WPawn::canReach(char tCol, int tRank){
     int direction=(int)cRank - (int)tRank; //// negative -->F ,, positive -->B
 
     int fDistance=(int)tRank - (int)cRank;
+    char rank='0'+tRank;
     
     if (fDistance<=0 || fDistance>2){
         return valid;
@@ -432,32 +450,40 @@ bool WPawn::canReach(char tCol, int tRank){
     
 
     //direction F 
-    while (next->f !=NULL & side ==0 & direction <0 & !valid){
+    while (next->f !=NULL && side ==0 && direction <0 && !valid){
         next=next->f;
-        if (next->column==tCol & next->row <= tRank & !next->empty){ // path is blocked
+        if (next->column==tCol && next->row <= tRank && !next->empty){ // path is blocked
             break;
         }
 
-        if (next->column==tCol & next->row == tRank & next->empty){ //reaching target  and target is empty
+        if (next->column==tCol && next->row == tRank && next->empty){ //reaching target  and target is empty
             valid=true;          
             break;
         }
         
     }
 
+    char a=*passant;
+    char b=*(passant+1);
 
     //direction RF
-    while (next->rf !=NULL & side <0 & direction <0 & !valid){
+    while (next->rf !=NULL && side <0 && direction <0 && !valid && capture){
         next=next->rf;
-        if (next->column==tCol & next->row == tRank & !next->empty){ //reaching target  and target is occupied
+        if (next->column==tCol && next->row == tRank && !next->empty){ //reaching target  and target is occupied
             if (cBlack!=next->blackPiece){  // is occupied by different  color
                 valid=true;
                 break;
             } 
 
         }
-        if (next->column==tCol & next->row == tRank & next->empty){ //reaching target  and target is empty, must be a passant
-            valid=true;
+        if (next->column==tCol && next->row == tRank && next->empty){ //reaching target  and target is empty, must be a passant
+            if (enPassantSide=='B') {
+                char cRank='0'+tRank;
+               
+                if (tCol==passant[0] && cRank==passant[1]){
+                    valid=true;
+                }
+            }
             break;
         }
         
@@ -467,18 +493,25 @@ bool WPawn::canReach(char tCol, int tRank){
     // direction negative -->F ,, positive -->B
 
     //direction LF 
-    while (next->lf !=NULL & side >0 & direction < 0 & !valid){
+    while (next->lf !=NULL && side >0 && direction < 0 && !valid && capture){
         next=next->lf;
-        if (next->column==tCol & next->row == tRank & !next->empty){ //reaching target  and target is occupied
+        if (next->column==tCol && next->row == tRank && !next->empty){ //reaching target  and target is occupied
             if (cBlack!=next->blackPiece){  // is different by same color
                 valid=true;
                 break;
             } 
 
         }
-        if (next->column==tCol & next->row == tRank & next->empty){ //reaching target  and target is empty )passant=
-            valid=true;
+        if (next->column==tCol && next->row == tRank && next->empty){ //reaching target  and target is empty )passant=
+            if (enPassantSide=='B') {
+                char cRank='0'+tRank;
+                if (tCol==passant[0] && cRank==passant[1]){
+                     cout<<"Valid passant";
+                    valid=true;
+                }
+            }
             break;
+            
         }
     }
 
@@ -490,13 +523,13 @@ bool WPawn::canReach(char tCol, int tRank){
 }
 
 
-bool WPawn::moveTo(char tCol, int tRank, bool capture){
+bool WPawn::moveTo(char tCol, int tRank, bool capture, char enPassant, char  *passant){
     bool valid=false;
 
     if (capture){
-       if (canReach(tCol,tRank)){
+       if (canReach(tCol,tRank, capture, enPassant, passant)){
 
-            valid=captureOn(tCol,tRank);
+            valid=captureOn(tCol,tRank, enPassant, passant);
             return valid;
        } 
     }
@@ -515,8 +548,11 @@ bool WPawn::moveTo(char tCol, int tRank){
 
     int fDistance=(int)tRank - (int)cRank;
 
+    char passant[2];
+    passant[0]='i';
+    passant[1]='9';
 
-    if (canReach(tCol,tRank)){
+    if (canReach(tCol,tRank, false, '-', passant)){
         if (fDistance==2 && cRank==2 && side ==0){
             setEnPassant(true);
         }
@@ -526,6 +562,77 @@ bool WPawn::moveTo(char tCol, int tRank){
     return valid;
 }
 
+bool WPawn::captureOn(char tCol, int tRank, char enPassant, char * passant){
+    if (enPassant=='B') {
+        if (tCol==passant[0] && ('0'+tRank)==passant[1]){
+            return captureOnPassant( tCol,  tRank, enPassant, passant);
+        }
+    }
+    return Piece::captureOn( tCol,  tRank);
+}
+
+bool WPawn::captureOnPassant(char tCol, int tRank, char enPassant, char * passant){
+    bool valid=false;
+    struct Cell *targetCell=getCell(tCol, tRank);
+    struct Cell *BPwanCell=getCell(passant[0], passant[1]-'0'-1);
+    bool empty=BPwanCell->empty;
+    bool isTargetPieceBlack=BPwanCell->blackPiece;
+
+    if (isBlackPiece!=isTargetPieceBlack){
+        valid=true;
+    } else {
+        return false;
+    }
+    
+    if (empty){
+        return false; //----Check pasant
+    } else {
+        currentCell->empty=true;
+        BPwanCell->empty=true;
+        targetCell->empty=false;
+        valid=true;
+    }
+
+
+    targetCell->pieceType=currentCell->pieceType;
+    BPwanCell->pieceType=' ';
+    currentCell->pieceType=' ';
+
+    targetCell->blackPiece=currentCell->blackPiece;
+    BPwanCell->blackPiece=false;
+    currentCell->blackPiece=false;
+
+    //---
+    (BPwanCell->piece)->setOnBoard(false);
+    (BPwanCell->piece)->rank=0;
+    (BPwanCell->piece)->col=' ';
+    (BPwanCell->piece)->previousCell=(BPwanCell->piece)->currentCell; //check later  ...(BPwanCell->piece)->currentCell
+    (BPwanCell->piece)->currentCell=NULL;
+    //---
+    
+    targetCell->piece= this;  //currentCell->piece;
+    currentCell->piece=NULL;
+    BPwanCell->piece=NULL;
+
+    previousCell=currentCell;
+    currentCell=targetCell;
+    
+    setOnBoard(true);
+    
+    alreadyMoved=true;
+    
+    if (tRank>5){
+        above5thRank=true;
+    } else{
+        above5thRank=false;
+    }
+    
+    rank=tRank;
+    col=tCol;
+    return valid;
+}
+
+
 bool WPawn::getEnPassant()
 {
     return enPassant;
@@ -534,7 +641,7 @@ bool WPawn::getEnPassant()
 void WPawn::setEnPassant(bool b){
         enPassant=b;
 }
-
+/*
 bool Piece::captureEnPassant(char tCol, int tRank){
     bool valid=false;
     struct Cell *target=getCell(tCol, tRank);
@@ -591,7 +698,7 @@ bool Piece::captureEnPassant(char tCol, int tRank){
     return valid;
 }
 
-
+*/
 
 class BPawn:public Pawn {
 
@@ -600,9 +707,11 @@ public:
    bool enPassant;
    bool getEnPassant();
    void setEnPassant(bool b);
-   bool canReach(char, int);
-   bool moveTo(char , int, bool);
+   bool canReach(char, int, bool, char , char  *);
+   bool moveTo(char , int, bool, char , char  *);
    bool moveTo(char , int );
+   bool captureOn(char , int, char, char *);
+   bool captureOnPassant(char , int , char , char * );
 };
 
 BPawn::BPawn(struct Cell *c){
@@ -619,7 +728,7 @@ void BPawn::setEnPassant(bool b){
 }
 //_______________________________
 
-bool BPawn::canReach(char tCol, int tRank){
+bool BPawn::canReach(char tCol, int tRank, bool capture, char enPassantSide, char  * passant){
     bool valid=false;
     
     if (currentCell==NULL){
@@ -648,60 +757,66 @@ bool BPawn::canReach(char tCol, int tRank){
     
 
     //direction B 
-    while (next->b !=NULL & side ==0 & direction >0 & !valid){
+    while (next->b !=NULL && side ==0 && direction >0 && !valid){
         next=next->b;
-        if (next->column==tCol & next->row <= tRank & !next->empty){ // path is blocked
-            break;
+        if (next->column==tCol && next->row >= tRank && !next->empty){ // path is blocked
+            return valid=false;
         }
 
-        if (next->column==tCol & next->row == tRank & next->empty){ //reaching target  and target is occupied
-            valid=true;
-            break;
+        if (next->column==tCol && next->row == tRank && next->empty){ //reaching target  and target is occupied
+            return valid=true;
         }
 
     }
 
 
     //direction RB 
-    while (next->rb !=NULL & side <0 & direction >0 & !valid){
+    while (next->rb !=NULL && side <0 && direction >0 && !valid && capture){
         next=next->rb;
-        if (next->column==tCol & next->row == tRank & !next->empty){ //reaching target  and target is occupied
+        if (next->column==tCol && next->row == tRank && !next->empty){ //reaching target  and target is occupied
             if (cBlack!=next->blackPiece){  // is occupied by other color
-                valid=true;
-                break;
+                return valid=true;
             } 
 
         }
+        if (next->column==tCol && next->row == tRank && next->empty){ //reaching target  and target is empty, must be a passant
+            if (enPassantSide=='W') {
+                char cRank='0'+tRank;
+                if (tCol==passant[0] && cRank==passant[1]){
+                    valid==true;
+                }
+            }
+            return valid;
+        }
         
     }
+
+
 
 
 
     // side negative -->R ,, positive -->L  
     // direction negative -->F ,, positive -->B
 
-    //direction LF 
-    while (next->lf !=NULL & side >0 & direction < 0 & !valid){
-        next=next->lf;
-        if (next->column==tCol & next->row == tRank & !next->empty){ //reaching target  and target is occupied
-            if (cBlack!=next->blackPiece){  // is different by same color
-                valid=true;
-                break;
-            } 
 
-        }
-        
-    }
 
 //direction LB 
-    while (next->lb !=NULL & side >0 & direction > 0 & !valid){
+    while (next->lb !=NULL & side >0 & direction > 0 & !valid && capture){
         next=next->lb;
         if (next->column==tCol & next->row == tRank & !next->empty){ //reaching target  and target is occupied
             if (cBlack!=next->blackPiece){  // is occupied by same color
-                valid=true;
-                break;
+                return valid=true;
             } 
         }
+        if (next->column==tCol && next->row == tRank && next->empty){ //reaching target  and target is empty, must be a passant
+            if (enPassantSide=='W') {
+                char cRank='0'+tRank;
+                if (tCol==passant[0] && cRank==passant[1]){
+                    return valid=true;
+                }
+            }
+            return valid=false;
+        }        
     }
 
 
@@ -715,11 +830,11 @@ bool BPawn::canReach(char tCol, int tRank){
 
 
 
-bool BPawn::moveTo(char tCol, int tRank, bool capture){
+bool BPawn::moveTo(char tCol, int tRank, bool capture, char enPassant, char  *passant){
     bool valid=false;
     if (capture){
-       if (canReach(tCol,tRank)){
-            valid=captureOn(tCol,tRank);
+       if (canReach(tCol,tRank, capture, enPassant, passant)){
+            valid=captureOn(tCol,tRank,  enPassant, passant);
             return valid;
        } 
     }
@@ -737,8 +852,11 @@ bool BPawn::moveTo(char tCol, int tRank){
 
     int fDistance=(int)tRank - (int)cRank;
 
+    char passant[2];
+    passant[0]='i';
+    passant[1]='9';
 
-    if (canReach(tCol,tRank)){
+    if (canReach(tCol,tRank, false, '-', passant)){
         if (fDistance==-2 && cRank==7 && side ==0){
             setEnPassant(true);
         }
@@ -750,6 +868,78 @@ bool BPawn::moveTo(char tCol, int tRank){
 
 
 }
+
+bool BPawn::captureOn(char tCol, int tRank, char enPassant, char * passant){
+    if (enPassant=='W') {
+        if (tCol==passant[0] && ('0'+tRank)==passant[1]){
+            return captureOnPassant( tCol,  tRank, enPassant, passant);
+        }
+    }
+    return Piece::captureOn( tCol,  tRank);
+}
+
+bool BPawn::captureOnPassant(char tCol, int tRank, char enPassant, char * passant){
+    bool valid=false;
+    struct Cell *targetCell=getCell(tCol, tRank);
+    struct Cell *WPwanCell=getCell(passant[0], passant[1]-'0'+1);
+    bool empty=WPwanCell->empty;
+    bool isTargetPieceBlack=WPwanCell->blackPiece;
+
+    if (isBlackPiece!=isTargetPieceBlack){
+        valid=true;
+    } else {
+        return false;
+    }
+    
+    if (empty){
+        return false; //----Check pasant
+    } else {
+        currentCell->empty=true;
+        WPwanCell->empty=true;
+        targetCell->empty=false;
+        valid=true;
+    }
+
+
+    targetCell->pieceType=currentCell->pieceType;
+    WPwanCell->pieceType=' ';
+    currentCell->pieceType=' ';
+
+    targetCell->blackPiece=currentCell->blackPiece;
+    WPwanCell->blackPiece=false;
+    currentCell->blackPiece=false;
+
+    //---
+    (WPwanCell->piece)->setOnBoard(false);;
+    (WPwanCell->piece)->rank=0;
+    (WPwanCell->piece)->col=' ';
+    (WPwanCell->piece)->previousCell=(WPwanCell->piece)->currentCell; //check later  ...(BPwanCell->piece)->currentCell
+    (WPwanCell->piece)->currentCell=NULL;
+    //---
+    
+    targetCell->piece= this;  //currentCell->piece;
+    currentCell->piece=NULL;
+    WPwanCell->piece=NULL;
+
+    previousCell=currentCell;
+    currentCell=targetCell;
+    
+    setOnBoard(true);
+    
+    alreadyMoved=true;
+    
+    if (tRank>5){
+        above5thRank=true;
+    } else{
+        above5thRank=false;
+    }
+    
+    rank=tRank;
+    col=tCol;
+    return valid;
+}
+
+
 
 
 //__________________________
@@ -1487,28 +1677,30 @@ class Board {
     struct Cell* buildRows();
     struct Cell* getCell(char , int , bool );
 
-    list<WPawn> wPawns;
-    list<BPawn> bPawns;
-    list<Knight> wKnights;
-    list<Knight> bKnights;
-    list<Rook> wRooks;
-    list<Rook> bRooks;
-    list<Bishop> wBishops;
-    list<Bishop> bBishops;
-    list<Queen> wQueens;
-    list<Queen> bQueens;
-    list<Piece> black;
-    list<Piece> white;
+    list<WPawn *> wPawns;
+    list<BPawn *> bPawns;
+    list<Knight *> wKnights;
+    list<Knight *> bKnights;
+    list<Rook *> wRooks;
+    list<Rook *> bRooks;
+    list<Bishop *> wBishops;
+    list<Bishop *> bBishops;
+    list<Queen *> wQueens;
+    list<Queen *> bQueens;
+    list<Piece *> black;
+    list<Piece *> white;
     King *wKing;
     King *bKing;
     
     void buildFENArray();
 
     char* getChessPiece(char );
-    bool whiteToMove=true;
+
     char wCastling='B';  //B=Both; K=king side,Q=Queenside
     char bCastling='b';  //b=Both; k=king side,q=Queenside
-    char passant[2];
+
+
+
     char enPassantSide=' ';
     int halfMove=0;
     int fullMoves=1;
@@ -1518,6 +1710,8 @@ class Board {
 public:
     struct Cell* a1;
     struct Cell* a8;
+    char passant[2];
+    bool whiteToMove=true;
     Board();
     std::string printBoard();
     friend ostream& operator<<(std::ostream& os, Board b) { return os << b.printBoard();   };
@@ -1534,26 +1728,29 @@ public:
     Rook  *findWRookTo(char , int, char ,int, bool);
     Bishop  *findWBishopTo(char , int, char ,int, bool);
     Knight  *findWKnightTo(char , int, char ,int, bool);
-    WPawn  *findWPawnTo(char , int, char ,int, bool);
     Queen *findBQueenTo(char , int, char ,int, bool);
     Rook  *findBRookTo(char , int, char ,int, bool);
     Bishop  *findBBishopTo(char , int, char ,int, bool);
-    Knight  *findBKnightTo(char , int, char ,int, bool);
-    BPawn  *findBPawnTo(char , int, char ,int, bool);
+    WPawn *findWPawnTo(char , int , char , int , bool , char , char *);
+    Knight *findBKnightTo(char, int, char, int, bool);
+    BPawn  *findBPawnTo(char , int, char ,int, bool, char , char  * );
     void updateWCastling(char , int, Rook *);
-    void updateBCastling(char , int, Rook *);
+    void updateWCastling(char , int , King *);
+    void updateBCastling(char, int, Rook *);
+    void updateBCastling(char , int , King *);
     bool wKingCastling();
     bool bKingCastling();
     bool wQueenCastling();
     bool bQueenCastling();
-    bool isABlackPiecePreventingKsideCastling();
-    bool isAWhitePiecePreventingKsideCastling();
-    bool isABlackPiecePreventingQsideCastling();
-    bool isAWhitePiecePreventingQsideCastling();
+    //bool isABlackPiecePreventingKsideCastling();
+    //bool isAWhitePiecePreventingKsideCastling();
+    //bool isABlackPiecePreventingQsideCastling();
+    //bool isAWhitePiecePreventingQsideCastling();
     void setEnPassant(char , int , char);
     char getEnPassantSide();
     void setEnPassantSide(char );
 };
+
 
 Board::Board(){
     struct Cell* n=buildRows();
@@ -1655,7 +1852,7 @@ std::string Board::printBoard() {
     std::string buffer;
     struct Cell* m;
     char col=' ';
-    stringstream aux;
+    stringstream aux,rank;
     Color::Modifier WF(Color::FG_RED);
     Color::Modifier DF(Color::FG_DEFAULT);
     Color::Modifier BF(Color::FG_BLUE);
@@ -1665,7 +1862,7 @@ std::string Board::printBoard() {
     //cout << "This ->" << red << "word" << def << "<- is red." << endl;
     struct Cell* n=a8;
     
-    buffer+=(whiteToMove? "White to move \n":"Black to Move \n");
+    buffer+=(whiteToMove? "White moved \n":"Black moved \n");
     switch (wCastling) {
         case 'B' :
             buffer+= "White can castle on K  and Q sides \n";
@@ -1699,7 +1896,8 @@ std::string Board::printBoard() {
             break;
     }
     buffer+=" Passant: ";
-    buffer+= passant;
+    buffer+= passant[0];
+    buffer += passant[1];
     buffer+=" Half moves:";
     aux << halfMove;
     buffer +=aux.str();
@@ -1736,6 +1934,8 @@ std::string Board::printBoard() {
     }
     // _setmode(_fileno(stdout), _O_U16TEXT);
     //int WK = '♛';
+    buffer+="\n"; 
+    buffer+=getFENString();
     buffer+="\n"; 
     return buffer;
 }
@@ -2118,7 +2318,7 @@ int Board::initBoard(std::string bp )  {
 
             } else {
                 passant[0]=col;
-                passant[1]=row;
+                passant[1]<<row;
                 passantComplete=true;
                 ++it;
             }
@@ -2346,25 +2546,26 @@ Queen   *Board::findWQueenTo(char oCol,int oRank,char tCol,int tRank,bool captur
         Queen *q=NULL;
         char qCol;
         int qRank;
-        list<Queen>::iterator i=wQueens.begin();
+        list<Queen *>::iterator i=wQueens.begin();
         while (i != wQueens.end()){
-            qCol=(i)->col;
-            qRank=(i)->rank;
-            if ( ((i)->onBoard)){
+            q=*i;
+            qCol=(q)->col;
+            qRank=(q)->rank;
+            if ( ((q)->getOnBoard())){
                 if ((qCol==oCol) && (qRank==oRank)){
-                q=&*i;
                 return q;
                 }
             }
             ++i;
         }
         i=wQueens.begin();
+        q=NULL;
         while (i != wQueens.end()){
-            qCol=(i)->col;
-            qRank=(i)->rank;
-            if ((i)->onBoard){
-                if ((qCol==oCol) && (i)->canReach(tCol, tRank) ){
-                    q=&*i;
+            q=*i;
+            qCol= (q)->col;
+            qRank=(q)->rank;
+            if ((q)->getOnBoard()){
+                if ((qCol==oCol) && (q)->canReach(tCol, tRank) ){
                     return q;
                 }
             }
@@ -2372,32 +2573,32 @@ Queen   *Board::findWQueenTo(char oCol,int oRank,char tCol,int tRank,bool captur
         }
 
         i=wQueens.begin();
+        q=NULL;
         while (i != wQueens.end()){
-            qCol=(i)->col;
-            qRank=(i)->rank;
-            if ( (i)->onBoard){
-                if ( (i)->canReach(tCol, tRank) ){
-                    q=&*i;
+            q=*i;
+            qCol=(q)->col;
+            qRank=(q)->rank;
+            if ( (q)->getOnBoard()){
+                if ( (q)->canReach(tCol, tRank) ){
                     return q;
                 }
             }
             ++i;
         }
-
-        return q;
+        return NULL;
 }
 
 Rook   *Board::findWRookTo(char oCol,int oRank,char tCol,int tRank,bool capture){
         Rook *r=NULL;
         char rCol;
         int rRank;
-        list<Rook>::iterator i=wRooks.begin();
+        list<Rook *>::iterator i=wRooks.begin();
         while (i != wRooks.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard){
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard()){
                 if ((rCol==oCol) && (rRank==oRank) ){
-                    r=&*i;
+                    r=*i;
                     return r;
                 }
             }
@@ -2405,11 +2606,11 @@ Rook   *Board::findWRookTo(char oCol,int oRank,char tCol,int tRank,bool capture)
         }
         i=wRooks.begin();
         while (i != wRooks.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard){
-                if ((rCol==oCol) && (i)->canReach(tCol, tRank)){
-                    r=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard()){
+                if ((rRank==oRank) && (*i)->canReach(tCol, tRank)){
+                    r=*i;
                     return r;
                 }
             }
@@ -2418,11 +2619,24 @@ Rook   *Board::findWRookTo(char oCol,int oRank,char tCol,int tRank,bool capture)
 
         i=wRooks.begin();
         while (i != wRooks.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard){
-                if ((i)->canReach(tCol, tRank)){
-                    r=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard()){
+                if ((rCol==oCol) && (*i)->canReach(tCol, tRank)){
+                    r=*i;
+                    return r;
+                }
+            }
+        ++i;
+        }
+
+        i=wRooks.begin();
+        while (i != wRooks.end()){
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard()){
+                if ((*i)->canReach(tCol, tRank)){
+                    r=*i;
                     return r;
                 }
             }
@@ -2436,22 +2650,22 @@ Knight *Board::findWKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
     Knight *k=NULL;
     char kCol;
     int kRank;
-    list<Knight>::iterator i=wKnights.begin();
+    list<Knight *>::iterator i=wKnights.begin();
     while (i != wKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if ((i)->onBoard && (kCol==oCol) && (kRank==oRank) ){
-                k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if ((*i)->getOnBoard() && (kCol==oCol) && (kRank==oRank) ){
+                k=*i;
                 return k;
         }
         ++i;
     }
     i=wKnights.begin();
     while (i != wKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if ((i)->onBoard && (kCol==oCol) && (i)->canReach(tCol, tRank) ){
-                k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if ((*i)->getOnBoard() && (kCol==oCol) && (*i)->canReach(tCol, tRank) ){
+                k=*i;
                 return k;
         }
         ++i;
@@ -2459,10 +2673,10 @@ Knight *Board::findWKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
     
     i=wKnights.begin();
     while (i != wKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if ((i)->onBoard && (kRank==oRank) && (i)->canReach(tCol, tRank) ){
-                k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if ((*i)->getOnBoard() && (kRank==oRank) && (*i)->canReach(tCol, tRank) ){
+                k=*i;
                 return k;
         }
         ++i;
@@ -2470,10 +2684,10 @@ Knight *Board::findWKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
 
     i=wKnights.begin();
     while (i != wKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if ((i)->onBoard && (i)->canReach(tCol, tRank) ){
-            k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if ((*i)->getOnBoard() && (*i)->canReach(tCol, tRank) ){
+            k=*i;
             return k;
         }
         ++i;
@@ -2486,32 +2700,32 @@ Bishop   *Board::findWBishopTo(char oCol,int oRank,char tCol,int tRank,bool capt
         Bishop *b=NULL;
         char rCol;
         int rRank;
-        list<Bishop>::iterator i=wBishops.begin();
+        list<Bishop *>::iterator i=wBishops.begin();
         while (i != wBishops.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ( (i)->onBoard && (rCol==oCol) & (rRank==oRank) ){
-                b=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ( (*i)->getOnBoard() && (rCol==oCol) & (rRank==oRank) ){
+                b=*i;
                 return b;
             }
             ++i;
         }
         i=wBishops.begin();
         while (i != wBishops.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (i)->canReach(tCol, tRank) ){
-                b=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (*i)->canReach(tCol, tRank) ){
+                b=*i;
                 return b;
             }
         ++i;
         }
         i=wBishops.begin();
         while (i != wBishops.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (i)->canReach(tCol, tRank) ){
-                b=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (*i)->canReach(tCol, tRank) ){
+                b=*i;
                 return b;
             }
         ++i;
@@ -2526,22 +2740,22 @@ Queen   *Board::findBQueenTo(char oCol,int oRank,char tCol,int tRank,bool captur
         Queen *q=NULL;
         char qCol;
         int qRank;
-        list<Queen>::iterator i=bQueens.begin();
+        list<Queen *>::iterator i=bQueens.begin();
         while (i != bQueens.end()){
-            qCol=(i)->col;
-            qRank=(i)->rank;
-            if ((qCol==oCol) & (qRank==oRank) & ((i)->onBoard)){
-                q=&*i;
+            qCol=(*i)->col;
+            qRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (qCol==oCol) && (qRank==oRank) ){
+                q=*i;
                 return q;
             }
             ++i;
         }
         i=bQueens.begin();
         while (i != bQueens.end()){
-            qCol=(i)->col;
-            qRank=(i)->rank;
-            if ((qCol==oCol) & (i)->canReach(tCol, tRank) & ((i)->onBoard)){
-                q=&*i;
+            qCol=(*i)->col;
+            qRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (qCol==oCol) && (*i)->canReach(tCol, tRank) ){
+                q=*i;
                 return q;
             }
         ++i;
@@ -2549,10 +2763,10 @@ Queen   *Board::findBQueenTo(char oCol,int oRank,char tCol,int tRank,bool captur
 
         i=bQueens.begin();
         while (i != bQueens.end()){
-            qCol=(i)->col;
-            qRank=(i)->rank;
-            if ( (i)->canReach(tCol, tRank) & ((i)->onBoard)){
-                q=&*i;
+            qCol=(*i)->col;
+            qRank=(*i)->rank;
+            if ( (*i)->getOnBoard() && (*i)->canReach(tCol, tRank) ){
+                q=*i;
                 return q;
             }
         ++i;
@@ -2565,22 +2779,35 @@ Rook   *Board::findBRookTo(char oCol,int oRank,char tCol,int tRank,bool capture)
         Rook *r=NULL;
         char rCol;
         int rRank;
-        list<Rook>::iterator i=bRooks.begin();
+        list<Rook *>::iterator i=bRooks.begin();
         while (i != bRooks.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((rCol==oCol) & (rRank==oRank) & ((i)->onBoard)){
-                r=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if (((*i)->getOnBoard()) && (rCol==oCol) && (rRank==oRank)  ){
+                r=*i;
                 return r;
             }
             ++i;
         }
         i=bRooks.begin();
         while (i != bRooks.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((rCol==oCol) & (i)->canReach(tCol, tRank) & ((i)->onBoard)){
-                r=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard()){
+                if ((rRank==oRank) && (*i)->canReach(tCol, tRank)){
+                    r=*i;
+                    return r;
+                }
+            }
+        ++i;
+        }
+
+        i=bRooks.begin();
+        while (i != bRooks.end()){
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if (((*i)->getOnBoard()) && (rCol==oCol) && (*i)->canReach(tCol, tRank) ){
+                r=*i;
                 return r;
             }
         ++i;
@@ -2588,10 +2815,10 @@ Rook   *Board::findBRookTo(char oCol,int oRank,char tCol,int tRank,bool capture)
 
         i=bRooks.begin();
         while (i != bRooks.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->canReach(tCol, tRank) & ((i)->onBoard)){
-                r=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (*i)->canReach(tCol, tRank) ){
+                r=*i;
                 return r;
             }
         ++i;
@@ -2604,14 +2831,14 @@ Knight *Board::findBKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
     Knight *k=NULL;
     char kCol;
     int kRank;
-    list<Knight>::iterator i=bKnights.begin();
+    list<Knight *>::iterator i=bKnights.begin();
     
     while (i != bKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if (((i)->onBoard)  ){
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if (((*i)->getOnBoard())  ){
             if  ( (kCol==oCol) & (kRank==oRank) ){
-            k=&*i;
+            k=*i;
             return k;
              }
         }
@@ -2619,11 +2846,11 @@ Knight *Board::findBKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
     }
     i=bKnights.begin();
     while (i != bKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if (((i)->onBoard)  ){
-            if  ( (i)->canReach(tCol, tRank) && (kCol==oCol)){
-                k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if (((*i)->getOnBoard())  ){
+            if  ( (*i)->canReach(tCol, tRank) && (kCol==oCol)){
+                k=*i;
                 return k;
             }
         }
@@ -2632,11 +2859,11 @@ Knight *Board::findBKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
     
     i=bKnights.begin();
     while (i != bKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if (((i)->onBoard)  ){
-            if  ( (i)->canReach(tCol, tRank) && (kRank==oRank)){
-                k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if (((*i)->getOnBoard())  ){
+            if  ( (*i)->canReach(tCol, tRank) && (kRank==oRank)){
+                k=*i;
                 return k;
             }
         }
@@ -2645,11 +2872,11 @@ Knight *Board::findBKnightTo(char oCol,int oRank,char tCol,int tRank, bool captu
 
     i=bKnights.begin();
     while (i != bKnights.end()){
-        kCol=(i)->col;
-        kRank=(i)->rank;
-        if (((i)->onBoard)  ){
-            if  ( (i)->canReach(tCol, tRank)){
-                k=&*i;
+        kCol=(*i)->col;
+        kRank=(*i)->rank;
+        if (((*i)->getOnBoard())  ){
+            if  ( (*i)->canReach(tCol, tRank)){
+                k=*i;
                 return k;
             }
         }
@@ -2663,22 +2890,22 @@ Bishop   *Board::findBBishopTo(char oCol,int oRank,char tCol,int tRank,bool capt
         Bishop *b=NULL;
         char rCol;
         int rRank;
-        list<Bishop>::iterator i=bBishops.begin();
+        list<Bishop *>::iterator i=bBishops.begin();
         while (i != bBishops.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (rRank==oRank) ){
-                b=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (rRank==oRank) ){
+                b=*i;
                 return b;
            }
             ++i;
         }
         i=bBishops.begin();
         while (i != bBishops.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (i)->canReach(tCol, tRank) ){
-                b=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (*i)->canReach(tCol, tRank) ){
+                b=*i;
                 return b;
             }
         ++i;
@@ -2686,10 +2913,10 @@ Bishop   *Board::findBBishopTo(char oCol,int oRank,char tCol,int tRank,bool capt
 
         i=bBishops.begin();
         while (i != bBishops.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (i)->canReach(tCol, tRank) ){
-                b=&*i;
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (*i)->canReach(tCol, tRank) ){
+                b=*i;
                 return b;
             }
         ++i;
@@ -2698,38 +2925,38 @@ Bishop   *Board::findBBishopTo(char oCol,int oRank,char tCol,int tRank,bool capt
         return b;
 }
 
-WPawn *Board::findWPawnTo(char oCol, int oRank,char tCol, int tRank, bool capture){
+WPawn *Board::findWPawnTo(char oCol, int oRank,char tCol, int tRank, bool capture , char enPassantSide, char  * passant){
         WPawn *p=NULL;
         char rCol;
         int rRank;
         Piece *pp;
-        list<WPawn>::iterator i=wPawns.begin();
+        list<WPawn *>::iterator i=wPawns.begin();
         while (i != wPawns.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (rRank==oRank) && (i)->canReach(tCol, tRank) ){
-                pp = &*i;
-                p=static_cast<WPawn *>(pp);   
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (rRank==oRank) && (*i)->canReach(tCol, tRank, capture, enPassantSide, passant ) ){
+                p = *i;
+                //p=static_cast<WPawn *>(pp);   
                 return p;
             }
             ++i;
         }
         i=wPawns.begin();
         while (i != wPawns.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (i)->canReach(tCol, tRank) ){
-                pp = &*i;
-                p=static_cast<WPawn *>(pp);   
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (*i)->canReach(tCol, tRank, capture, enPassantSide, passant) ){
+                p = *i;
+                //p=static_cast<WPawn *>(pp);   
                 return p;
             }
         ++i;
         }
         i=wPawns.begin();
         while (i != wPawns.end()){
-            if ((i)->onBoard && (i)->canReach(tCol, tRank) ){
-                pp = &*i;
-                p=static_cast<WPawn *>(pp);   
+            if ((*i)->getOnBoard() && (*i)->canReach(tCol, tRank , capture, enPassantSide, passant ) ){
+                p = *i;
+                //p=static_cast<WPawn *>(pp);   
                 return p;
             }
         ++i;
@@ -2737,38 +2964,38 @@ WPawn *Board::findWPawnTo(char oCol, int oRank,char tCol, int tRank, bool captur
         return p;
 }
 
-BPawn *Board::findBPawnTo(char oCol, int oRank,char tCol, int tRank, bool capture){
+BPawn *Board::findBPawnTo(char oCol, int oRank,char tCol, int tRank, bool capture,char enPassantSide, char  * passant){
         BPawn *p=NULL;
         char rCol;
         int rRank;
         Piece *pp;
-        list<BPawn>::iterator i=bPawns.begin();
+        list<BPawn *>::iterator i=bPawns.begin();
         while (i != bPawns.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (rRank==oRank)){
-                pp = &*i;
-                p=static_cast<BPawn *>(pp);   
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (rRank==oRank) && (*i)->canReach(tCol, tRank, capture, enPassantSide, passant ) ){
+                p = *i;
+                //p=static_cast<BPawn *>(pp);   
                 return p;
             }
             ++i;
         }
         i=bPawns.begin();
         while (i != bPawns.end()){
-            rCol=(i)->col;
-            rRank=(i)->rank;
-            if ((i)->onBoard && (rCol==oCol) && (i)->canReach(tCol, tRank)){
-                pp = &*i;
-                p=static_cast<BPawn *>(pp);   
+            rCol=(*i)->col;
+            rRank=(*i)->rank;
+            if ((*i)->getOnBoard() && (rCol==oCol) && (*i)->canReach(tCol, tRank, capture, enPassantSide, passant )){
+                p = *i;
+                //p=static_cast<BPawn *>(pp);   
                 return p;
             }
         ++i;
         }
         i=bPawns.begin();
         while (i != bPawns.end()){
-            if ((i)->onBoard && (i)->canReach(tCol, tRank)){
-                pp = &*i;
-                p=static_cast<BPawn *>(pp);   
+            if ((*i)->getOnBoard() && (*i)->canReach(tCol, tRank, capture, enPassantSide, passant )){
+                p = *i;
+                //p=static_cast<BPawn *>(pp);   
                 return p;
             }
         ++i;
@@ -2779,12 +3006,16 @@ BPawn *Board::findBPawnTo(char oCol, int oRank,char tCol, int tRank, bool captur
 //________________________
 
 
-
+/*
 bool Board::isABlackPiecePreventingKsideCastling(){
     bool check=false;
     list<Piece>::iterator i=black.begin();
     Piece *pp;
     char type=' ';
+    char passant[2];
+    passant[0]='i';
+    passant[1]='9';
+    
     while (i != black.end()){
         type=i->type;
         pp = &*i;
@@ -2793,7 +3024,7 @@ bool Board::isABlackPiecePreventingKsideCastling(){
                 case 'p':
                     {
                     BPawn* p=static_cast<BPawn *>(pp);
-                    check=((p)->canReach('e',1) || (p)->canReach('f',1) || (p)->canReach('g',1));
+                    check=((p)->canReach('e',1,true, '-', passant) || (p)->canReach('f',1, true, '-', passant) || (p)->canReach('g',1, true, '-', passant));
                     }
                     break;
                 case 'r':
@@ -2841,6 +3072,9 @@ bool Board::isABlackPiecePreventingKsideCastling(){
     list<Piece>::iterator i=white.begin();
     Piece *pp;
     char type=' ';
+    char passant[2];
+    passant[0]='i';
+    passant[1]='9';
     while (i != white.end()){
         type=i->type;
         pp = &*i;
@@ -2849,7 +3083,7 @@ bool Board::isABlackPiecePreventingKsideCastling(){
                 case 'p':
                     {
                     WPawn* p=static_cast<WPawn *>(pp);
-                    check=(p)->canReach('e',8) || (p)->canReach('f',8) || (p)->canReach('g',8);
+                    check=(p)->canReach('e',8, true, '-', passant) || (p)->canReach('f',8, true, '-', passant) || (p)->canReach('g',8, true, '-', passant);
                     }
                     break;
                 case 'r':
@@ -2893,21 +3127,22 @@ bool Board::isABlackPiecePreventingKsideCastling(){
     }
     return check;
  }
-
  bool Board::isABlackPiecePreventingQsideCastling(){
     bool check=false;
     list<Piece>::iterator i=black.begin();
     Piece *pp;
-    char type=' ';
+
+    char passant[2];
+    passant[0]='i';
+    passant[1]='9';
     while (i != black.end()){
-        type=i->type;
         pp = &*i;
         if (i->onBoard){
-            switch (type){
+            switch (i->type){
                 case 'p':
                     {
                         BPawn* p=static_cast<BPawn *>(pp);
-                    check=(p)->canReach('e',1) || (p)->canReach('d',1) || (p)->canReach('c',1);
+                    check=(p)->canReach('e',1, true, '-', passant) || (p)->canReach('d',1, true, '-', passant) || (p)->canReach('c',1, true, '-', passant);
                     }
                     break;
                 case 'r':
@@ -2957,6 +3192,9 @@ bool Board::isABlackPiecePreventingKsideCastling(){
     list<Piece>::iterator i=white.begin();
     Piece *pp;
     char type=' ';
+    char passant[2];
+    passant[0]='i';
+    passant[1]='9';
     while (i != white.end()){
         type=i->type;
         pp = &*i;
@@ -2965,7 +3203,7 @@ bool Board::isABlackPiecePreventingKsideCastling(){
                 case 'p':
                     {
                     WPawn* p=static_cast<WPawn *>(pp);
-                    check=(p)->canReach('e',8) || (p)->canReach('d',8) || (p)->canReach('c',8);
+                    check=(p)->canReach('e',8, true, '-', passant) || (p)->canReach('d',8, true, '-', passant) || (p)->canReach('c',8, true, '-', passant);
                     }
                     break;
                 case 'r':
@@ -3009,7 +3247,7 @@ bool Board::isABlackPiecePreventingKsideCastling(){
     }
     return check;
  }
-
+*/
 
 bool Board::wKingCastling(){
     bool valid=false;
@@ -3026,11 +3264,11 @@ bool Board::wKingCastling(){
         Rook *rook=findWRookTo(oCol,oRank,tCol,tRank,capture);
         if (!rook->moved){
         //check if a black piece can reach e1, f1, g1
-            if (!isABlackPiecePreventingKsideCastling()){
+            //if (!isABlackPiecePreventingKsideCastling()){
                 if (wKing->castle(castlingKCol, castlingKRank) & (rook->castle(castlingRCol, castlingRRank))){
                     valid=true;
                 }
-            };
+            //};
         }
 
     } 
@@ -3048,15 +3286,15 @@ bool Board::bKingCastling(){
     char castlingRCol='f';
     int castlingRRank=8;
     bool capture=false;
-    if (bCastling=='b' | wCastling=='k'){
+    if (bCastling=='b' | bCastling=='k'){
         Rook *rook=findBRookTo(oCol,oRank,tCol,tRank,capture);
         if (!rook->moved){
         //check if a black piece can reach e8, f8, g8
-            if (!isAWhitePiecePreventingKsideCastling()){
+            //if (!isAWhitePiecePreventingKsideCastling()){
                 if (bKing->castle(castlingKCol, castlingKRank) & (rook->castle(castlingRCol, castlingRRank))){
                     valid=true;
                 }
-            };
+            //};
         }
 
     } 
@@ -3078,11 +3316,11 @@ bool Board::wQueenCastling(){
         Rook *rook=findWRookTo(oCol,oRank,tCol,tRank,capture);
         if (!rook->moved){
         //check if a black piece can reach e1, f1, g1
-            if (!isABlackPiecePreventingQsideCastling()){
-                if (wKing->castle(castlingKCol, castlingKRank) & (rook->castle(castlingRCol, castlingRRank))){
+            //if (!isABlackPiecePreventingQsideCastling()){
+                if (wKing->castle(castlingKCol, castlingKRank) && (rook->castle(castlingRCol, castlingRRank))){
                     valid=true;
                 }
-            };
+            //};
         }
 
     } 
@@ -3099,15 +3337,15 @@ bool Board::bQueenCastling(){
     char castlingRCol='d';
     int castlingRRank=8;
     bool capture=false;
-    if (bCastling=='b' | wCastling=='k'){
+    if (bCastling=='b' | bCastling=='q'){
         Rook *rook=findBRookTo(oCol,oRank,tCol,tRank,capture);
         if (!rook->moved){
         //check if a black piece can reach e8, f8, g8
-            if (!isAWhitePiecePreventingQsideCastling()){
+            //if (!isAWhitePiecePreventingQsideCastling()){
                 if (bKing->castle(castlingKCol, castlingKRank) & rook->castle(castlingRCol, castlingRRank)){
                     valid=true;
                 }
-            };
+            //};
         }
 
     } 
@@ -3126,13 +3364,16 @@ bool Board::bQueenCastling(){
     bool capture = (gm)->getwCapture();
     bool kCastling = (gm)->getwKCastling();
     bool qCastling = (gm)->getwQCastling();
+//Promore
+    char promoteTo=gm->getwPromoteTo();
+
 
     bool validMove=false;
-    Rook *rook;
-    Knight *knight;
-    Bishop *bishop;
-    Queen *queen;
-    WPawn *pawn;
+    Rook *rook=NULL;
+    Knight *knight=NULL;
+    Bishop *bishop=NULL;
+    Queen *queen=NULL;
+    WPawn *pawn=NULL;
     bool moved=false;
 
     string test="KRNBQ";
@@ -3142,7 +3383,7 @@ bool Board::bQueenCastling(){
             case 'K':
                 validMove=wKing->moveTo(tCol,tRank,capture);
                 if (validMove){
-                    wCastling='n';
+                    updateWCastling(oCol,oRank,wKing);
                     moved=true;
                 }
             break;
@@ -3154,7 +3395,12 @@ bool Board::bQueenCastling(){
                 }
             break;
             case 'R':
+
                 rook=findWRookTo(oCol,oRank,tCol,tRank,capture);
+                if (oRank==0){
+                    oCol=rook->col;
+                    oRank=rook->rank;
+                }
                 validMove=rook->moveTo(tCol,tRank,capture);
                 if (validMove){
                     updateWCastling(oCol,oRank,rook);
@@ -3185,6 +3431,7 @@ bool Board::bQueenCastling(){
     if (kCastling & !moved){
         validMove=wKingCastling();
         if (validMove){
+            updateWCastling(oCol,oRank,wKing);
             moved=true;
         }
     }   
@@ -3192,21 +3439,114 @@ bool Board::bQueenCastling(){
     if (qCastling & !moved){
         validMove=wQueenCastling();
         if (validMove){
+            updateWCastling(oCol,oRank,wKing);
             moved=true;
         }
     }   
 
     if (!moved){
-        pawn=findWPawnTo(oCol,oRank,tCol,tRank,capture); //missing
-        validMove=pawn->moveTo(tCol,tRank,capture);
+        pawn=findWPawnTo(oCol,oRank,tCol,tRank,capture, enPassantSide, passant ); //missing
+        //promote to R|N|B|Q
+        validMove=pawn->moveTo(tCol,tRank,capture, enPassantSide, passant );
         if (validMove){
             if (pawn->getEnPassant()){
                 setEnPassant(tCol,tRank, 'W');
                 pawn->setEnPassant(false);
             }
-            moved=true;
+            test="R|N|B|Q";
+            if (test.find(promoteTo)!= string::npos){
+                struct Cell * current=pawn->currentCell;
+                //--- pawn offboard
+                pawn->setOnBoard(false);
+                pawn->rank=0;
+                pawn->col=' ';
+                pawn->previousCell=pawn->currentCell;
+                pawn->currentCell=NULL;
+                //---
+                Rook *r;
+                Knight *n;
+                Bishop *b;
+                Queen *q;
+                switch (promoteTo){
+                    case 'Q':
 
-        }
+                        q= new Queen(current);
+                        //--- queen onboard
+                        current->piece=q;
+                        q->isBlackPiece=false;
+                        q->setOnBoard(true);
+                        q->rank=current->row;
+                        q->col=current->column;
+                        q->initialCell=current;
+                        q->previousCell=NULL;
+                        q->currentCell=current;
+                        //---
+                        wQueens.push_back(q); 
+                        white.push_back( q); 
+                        current->pieceType='Q';
+                        break;
+                    case 'R':
+
+                        r= new Rook(current);
+                        //--- queen onboard
+                        current->piece=r;
+                        r->isBlackPiece=false;
+                        r->setOnBoard(true);
+                        r->rank=current->row;
+                        r->col=current->column;
+                        r->initialCell=current;
+                        r->previousCell=NULL;
+                        r->currentCell=current;
+                        //---
+                        wRooks.push_back(r); 
+                        white.push_back( r); 
+                        current->pieceType='R';
+                        break;
+                    
+                    case 'N':
+
+                        n= new Knight(current);
+                        //--- queen onboard
+                        current->piece=n;
+                        n->isBlackPiece=false;
+                        n->setOnBoard(true);
+                        n->rank=current->row;
+                        n->col=current->column;
+                        n->initialCell=current;
+                        n->previousCell=NULL;
+                        n->currentCell=current;
+                        //---
+                        wKnights.push_back(n); 
+                        white.push_back( n); 
+                        current->pieceType='N';
+                        break;
+
+                    case 'B':
+
+                        b= new Bishop(current);
+                        //--- queen onboard
+                        current->piece=b;
+                        b->isBlackPiece=false;
+                        b->setOnBoard(true);
+                        b->rank=current->row;
+                        b->col=current->column;
+                        b->initialCell=current;
+                        b->previousCell=NULL;
+                        b->currentCell=current;
+                        //---
+                        wBishops.push_back(b); 
+                        white.push_back( b); 
+                        current->pieceType='B';
+                        break;
+                    default:
+                        validMove=false;
+                        moved=false;
+                    break;
+                }
+            }
+            moved=true;
+        }           
+
     }   
 
     return validMove;
@@ -3217,8 +3557,17 @@ bool Board::bQueenCastling(){
 }
 
 void Board::setEnPassant(char col, int rank, char side){
+                char r[3];
+                stringstream ss;
+                if (side == 'W'){
+                    --rank;
+                } else {
+                    ++rank;
+                }
                 passant[0]=col;
-                passant[1]=rank;
+                ss << rank;
+                ss.read(r,1);
+                passant[1] = r[0];
                 enPassantSide=side;
 }
 
@@ -3239,6 +3588,7 @@ int Board::processBlackMove(GameMove *gm){
     bool capture = (gm)->getbCapture();
     bool kCastling = (gm)->getbKCastling();
     bool qCastling = (gm)->getbQCastling();
+    string bFullMove=(gm)->getBlackMove();
     bool validMove=false;
     Rook *rook;
     Knight *knight;
@@ -3246,6 +3596,8 @@ int Board::processBlackMove(GameMove *gm){
     Queen *queen;
     BPawn *pawn;
     bool moved=false;
+    //Promore
+    char promoteTo=gm->getbPromoteTo();
 
     string test="KRNBQ";
 
@@ -3254,7 +3606,7 @@ int Board::processBlackMove(GameMove *gm){
             case 'K':
                 validMove=bKing->moveTo(tCol,tRank,capture);
                 if (validMove){
-                    bCastling='n';
+                     updateBCastling(oCol,oRank,bKing);
                     moved=true;
                 }
             break;
@@ -3267,6 +3619,10 @@ int Board::processBlackMove(GameMove *gm){
             break;
             case 'R':
                 rook=findBRookTo(oCol,oRank,tCol,tRank,capture);
+                if (oRank==0){
+                    oCol=rook->col;
+                    oRank=rook->rank;
+                }
                 validMove=rook->moveTo(tCol,tRank,capture);
                 if (validMove){
                     updateBCastling(oCol, oRank, rook);
@@ -3289,7 +3645,7 @@ int Board::processBlackMove(GameMove *gm){
             break;
             default:
                 validMove=false;
-                moved-false;
+                moved=false;
             break;
         }
     } 
@@ -3297,6 +3653,7 @@ int Board::processBlackMove(GameMove *gm){
     if (kCastling & !moved){
         validMove=bKingCastling();
         if (validMove){
+            updateBCastling(oCol,oRank,bKing);
             moved=true;
         }
     }   
@@ -3304,19 +3661,116 @@ int Board::processBlackMove(GameMove *gm){
     if (qCastling & !moved){
         validMove=bQueenCastling();
         if (validMove){
+            updateBCastling(oCol,oRank,bKing);
             moved=true;
         }
     }   
+    if (bFullMove==""){
+        validMove=true;
+        moved=true;
+    }
 
     if (!moved){
-        pawn=findBPawnTo(oCol,oRank,tCol,tRank,capture); 
-        validMove=pawn->moveTo(tCol,tRank,capture);
+        pawn=findBPawnTo(oCol,oRank,tCol,tRank,capture, enPassantSide, passant ); 
+        validMove=pawn->moveTo(tCol,tRank,capture, enPassantSide, passant );
 
         if (validMove){
             if (pawn->getEnPassant()){
                 setEnPassant(tCol,tRank, 'B');
                 pawn->setEnPassant(false);
             }
+            test="R|N|B|Q";
+            if (test.find(promoteTo)!= string::npos){
+                struct Cell * current=pawn->currentCell;
+                //--- pawn offboard
+                pawn->setOnBoard(false);
+                pawn->rank=0;
+                pawn->col=' ';
+                pawn->previousCell=pawn->currentCell;
+                pawn->currentCell=NULL;
+                //---
+                Rook *r;
+                Knight *n;
+                Bishop *b;
+                Queen *q;
+                switch (promoteTo){
+                case 'Q':
+
+                    q= new Queen(current);
+                    //--- queen onboard
+                    current->piece=q;
+                    q->isBlackPiece=true;
+                    q->setOnBoard(true);
+                    q->rank=current->row;
+                    q->col=current->column;
+                    q->initialCell=current;
+                    q->previousCell=NULL;
+                    q->currentCell=current;
+                    //---
+                    bQueens.push_back(q); 
+                    black.push_back( q); 
+                    current->pieceType='Q';
+                    break;
+                case 'R':
+
+                    r= new Rook(current);
+                    //--- queen onboard
+                    current->piece=r;
+                    r->isBlackPiece=false;
+                    r->setOnBoard(true);
+                    r->rank=current->row;
+                    r->col=current->column;
+                    r->initialCell=current;
+                    r->previousCell=NULL;
+                    r->currentCell=current;
+                    //---
+                    bRooks.push_back(r); 
+                    black.push_back( r); 
+                    current->pieceType='R';
+                    break;
+                
+                case 'N':
+
+                    n= new Knight(current);
+                    //--- queen onboard
+                    current->piece=n;
+                    n->isBlackPiece=false;
+                    n->setOnBoard(true);
+                    n->rank=current->row;
+                    n->col=current->column;
+                    n->initialCell=current;
+                    n->previousCell=NULL;
+                    n->currentCell=current;
+                    //---
+                    bKnights.push_back(n); 
+                    black.push_back( n); 
+                    current->pieceType='N';
+                    break;
+
+                case 'B':
+
+                    b= new Bishop(current);
+                    //--- queen onboard
+                    current->piece=b;
+                    b->isBlackPiece=false;
+                    b->setOnBoard(true);
+                    b->rank=current->row;
+                    b->col=current->column;
+                    b->initialCell=current;
+                    b->previousCell=NULL;
+                    b->currentCell=current;
+                    //---
+                    bBishops.push_back(b); 
+                    black.push_back( b); 
+                    current->pieceType='B';
+                    break;
+                default:
+                    validMove=false;
+                    moved=false;
+                break;
+                }
+            }
+
             moved=true;
 
         }
@@ -3330,46 +3784,54 @@ void Board::updateWCastling(char oCol, int oRank,Rook *r){
 
     if ( oRank==1) {
         if (oCol=='a'){
-            if (wCastling=='B'){
-                wCastling='K';
-            }
             if (wCastling=='K'){
                 wCastling='n';
             }
+            if (wCastling=='B'){
+                wCastling='K';
+            }
         }  
         if (oCol=='h'){
-            if (wCastling=='B'){
-                wCastling='Q';
-            }
             if (wCastling=='Q'){
                 wCastling='n';
+            }
+            if (wCastling=='B'){
+                wCastling='Q';
             }
         }  
 
     } 
 }
 
+void Board::updateWCastling(char oCol, int oRank,King *k){
+                wCastling='n';
+}
+
 void Board::updateBCastling(char oCol, int oRank,Rook *r){
 
     if ( oRank==8) {
         if (oCol=='a'){
-            if (bCastling=='b'){
-                bCastling='k';
-            }
             if (bCastling=='k'){
                 bCastling='n';
             }
+            if (bCastling=='b'){
+                bCastling='k';
+            }
         }  
         if (oCol=='h'){
-            if (bCastling=='b'){
-                bCastling='q';
-            }
             if (bCastling=='q'){
                 bCastling='n';
+            }
+            if (bCastling=='b'){
+                bCastling='q';
             }
         }  
 
     } 
+}
+
+void Board::updateBCastling(char oCol, int oRank,King *k){
+                bCastling='n';
 }
 
 void Board::initializeBlackPiece(struct Cell *current, char c){
@@ -3385,49 +3847,49 @@ void Board::initializeBlackPiece(struct Cell *current, char c){
         p = new BPawn(current);
         current->piece=p;
         p->isBlackPiece=true;
-        p->onBoard=true;
-        bPawns.push_back((BPawn ) *p);
-        black.push_back( *p); 
+        p->setOnBoard(true);
+        bPawns.push_back(p);
+        black.push_back( p); 
         break;
     case 'r':
         r = new Rook(current);
         current->piece=r;
         r->isBlackPiece=true;
-        r->onBoard=true;
-        bRooks.push_back((Rook ) *r); 
-        black.push_back( *r); 
+        r->setOnBoard(true);
+        bRooks.push_back(r); 
+        black.push_back( r); 
         break;
     case 'n':
         n = new Knight(current);
         current->piece=n;
         n->isBlackPiece=true;
-        n->onBoard=true;
-        bKnights.push_back((Knight ) *n); 
-        black.push_back( *n); 
+        n->setOnBoard(true);
+        bKnights.push_back(n); 
+        black.push_back( n); 
         break;
     case 'b':
         b = new Bishop(current);
         current->piece=b;
         b->isBlackPiece=true;
-        b->onBoard=true;
-        bBishops.push_back((Bishop ) *b); 
-        black.push_back( *b); 
+        b->setOnBoard(true);
+        bBishops.push_back(b); 
+        black.push_back( b); 
         break;
     case 'q':
         q = new Queen(current);
         current->piece=q;
         q->isBlackPiece=true;
-        q->onBoard=true;
-        bQueens.push_back((Queen ) *q); 
-        black.push_back( *q); 
+        q->setOnBoard(true);
+        bQueens.push_back(q); 
+        black.push_back( q); 
         break;
     case 'k':
         k = new King(current);
         current->piece=k;
-        k->onBoard=true;
+        k->setOnBoard(true);
         k->isBlackPiece=true;
         bKing=k; 
-        black.push_back( *k); 
+        black.push_back( k); 
         break;
     default:
          break;
@@ -3446,49 +3908,49 @@ void Board::initializeWhitePiece(struct Cell *current, char c){
         p = new WPawn(current);
         current->piece=p;
         p->isBlackPiece=false;
-        p->onBoard=true;
-        wPawns.push_back((WPawn ) *p); 
-        white.push_back( *p);
+        p->setOnBoard(true);
+        wPawns.push_back(p); 
+        white.push_back( p);
         break;
     case 'R':
         r = new Rook(current);
         current->piece=r;
-        r->onBoard=true;
+        r->setOnBoard(true);
         r->isBlackPiece=false;
-        wRooks.push_back((Rook ) *r); 
-        white.push_back( *r);
+        wRooks.push_back(r); 
+        white.push_back( r);
         break;
     case 'N':
         n = new Knight(current);
         current->piece=n;
-        n->onBoard=true;
+        n->setOnBoard(true);
         n->isBlackPiece=false;
-        wKnights.push_back((Knight ) *n); 
-        white.push_back( *n);
+        wKnights.push_back(n); 
+        white.push_back( n);
         break;
     case 'B':
         b = new Bishop(current);
         current->piece=b;
-        b->onBoard=true;
+        b->setOnBoard(true);
         b->isBlackPiece=false;
-        wBishops.push_back((Bishop ) *b); 
-        white.push_back( *b);
+        wBishops.push_back(b); 
+        white.push_back( b);
         break;
     case 'Q':
         q = new Queen(current);
         current->piece=q;
-        q->onBoard=true;
+        q->setOnBoard(true);
         q->isBlackPiece=false;
-        wQueens.push_back((Queen ) *q); 
-        white.push_back( *q);
+        wQueens.push_back(q); 
+        white.push_back( q);
         break;
     case 'K':
         k = new King(current);
         current->piece=k;
-        k->onBoard=true;
+        k->setOnBoard(true);
         k->isBlackPiece=false;
         wKing=k; 
-        white.push_back( *k);
+        white.push_back( k);
         break;
     default:
          break;
