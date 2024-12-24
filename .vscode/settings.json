@@ -48,6 +48,12 @@
         "new": "cpp",
         "sstream": "cpp",
         "stdexcept": "cpp",
-        "cinttypes": "cpp"
+        "cinttypes": "cpp",
+        "list": "cpp",
+        "regex": "cpp",
+        "chrono": "cpp",
+        "bitset": "cpp",
+        "ratio": "cpp",
+        "shared_mutex": "cpp"
     }
 }
